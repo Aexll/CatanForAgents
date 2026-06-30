@@ -1,0 +1,651 @@
+\documentclass[11pt,a4paper]{article}
+
+% ======================================================================
+%  Analyse mathématique du jeu « Catan » — version simplifiée
+%  Mise au propre de etude.md
+% ======================================================================
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[french]{babel}
+\usepackage{lmodern}
+\usepackage{microtype}
+
+\usepackage{amsmath,amssymb}
+\usepackage{geometry}
+\geometry{margin=2.4cm}
+\usepackage{xcolor}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{enumitem}
+\usepackage{graphicx}
+\usepackage{caption}
+\usepackage{tcolorbox}
+\usepackage{hyperref}
+
+\usepackage{tikz}
+\usetikzlibrary{automata,positioning,arrows.meta,shapes.geometric,calc,backgrounds,fit}
+
+% ----------------------------------------------------------------------
+%  Couleurs des ressources
+% ----------------------------------------------------------------------
+\definecolor{resBois}{HTML}{2E7D32}   % bois
+\definecolor{resBle}{HTML}{F2C037}    % blé
+\definecolor{resMouton}{HTML}{8BC34A} % mouton
+\definecolor{resMinerai}{HTML}{607D8B}% minerai
+\definecolor{resArgile}{HTML}{C75B39} % argile
+\definecolor{resDesert}{HTML}{E0D2B4} % désert
+\definecolor{resOr}{HTML}{D4AF37}     % or
+
+\definecolor{accent}{HTML}{1565C0}
+\definecolor{accentdark}{HTML}{0D47A1}
+\definecolor{softgray}{HTML}{F4F5F7}
+
+\hypersetup{
+  colorlinks=true,
+  linkcolor=accentdark,
+  urlcolor=accent,
+  pdftitle={Analyse mathematique du jeu Catan},
+  pdfauthor={Etude}
+}
+
+% ----------------------------------------------------------------------
+%  Boîte « définition / remarque »
+% ----------------------------------------------------------------------
+\newtcolorbox{remarque}[1][]{
+  colback=softgray, colframe=accent, boxrule=0.6pt, arc=2pt,
+  left=8pt, right=8pt, top=6pt, bottom=6pt,
+  fonttitle=\bfseries, title=#1
+}
+
+% Petite pastille de ressource
+\newcommand{\pastille}[2]{\tikz[baseline=-0.6ex]\node[circle,fill=#1,text=white,
+  font=\bfseries\footnotesize,inner sep=1.6pt,minimum size=1.4em]{#2};}
+
+% Hexagone « pointy-top » de circonradius 0.95 centré en (#1,#2), rempli de #3
+% (à utiliser dans un environnement tikzpicture ; nécessite la librairie calc)
+\newcommand{\hexat}[3]{%
+  \filldraw[draw=black!45, line width=0.6pt, line join=round, fill=#3]
+    ($(#1,#2)+(90:0.95)$)  -- ($(#1,#2)+(30:0.95)$)  -- ($(#1,#2)+(330:0.95)$) --
+    ($(#1,#2)+(270:0.95)$) -- ($(#1,#2)+(210:0.95)$) -- ($(#1,#2)+(150:0.95)$) -- cycle;}
+
+% Boîte d'encodage (tuples) en police à chasse fixe
+\newtcolorbox{encodage}{
+  colback=softgray!60, colframe=black!25, boxrule=0.5pt, arc=2pt,
+  left=8pt, right=8pt, top=5pt, bottom=5pt, fontupper=\ttfamily}
+
+\title{\vspace{-1.0cm}\textbf{Analyse mathématique du jeu « Catan »}\\[2pt]
+       \large Version simplifiée avec marché central}
+\author{Étude}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+\noindent
+Cette étude propose une analyse mathématique du jeu de société \emph{Catan} en vue
+d'un apprentissage par renforcement (RL). Nous y introduisons une \textbf{version
+simplifiée} du jeu, débarrassée des interactions directes entre joueurs, et dotée
+d'un \textbf{marché central} ainsi que d'une nouvelle ressource, l'\emph{or}. Le
+présent document décrit les règles de cette variante, le modèle de perception, la
+machine d'état du jeu et la représentation du plateau sous forme de graphe.
+\emph{Il s'agit du début de l'étude.}
+\end{abstract}
+
+\tableofcontents
+\vspace{0.5cm}
+\hrule
+\vspace{0.5cm}
+
+% ======================================================================
+\section{Introduction}
+% ======================================================================
+
+\emph{Catan} est un jeu de société stratégique qui implique la collecte de
+ressources, la construction de routes et de colonies, et l'interaction avec les
+autres joueurs.
+
+Pour rendre plus simple le système de commerce et de négociation, nous utilisons une
+version simplifiée du jeu, possédant un \textbf{marché central} ainsi qu'une nouvelle
+ressource d'\textbf{or}, qui pourra être utilisée pour acheter des ressources à un
+taux variable.
+
+Cette version simplifiée \textbf{retire les interactions directes entre les joueurs}
+et se concentre sur la gestion des ressources et la planification stratégique, tout
+en gardant l'essence du jeu original.
+
+% ======================================================================
+\section{Les cartes développement}
+% ======================================================================
+
+Dans un premier temps, les cartes développement seront grandement simplifiées. Le jeu
+original comporte les cartes développement suivantes.
+
+\subsection{Cartes du jeu original}
+
+\begin{description}[leftmargin=1.4cm, style=nextline]
+  \item[Chevalier (14 cartes)] Permettent de déplacer le voleur et de voler une
+    ressource à un autre joueur. De plus, le joueur qui possède le plus de cartes
+    Chevalier (après en avoir joué $3$) peut obtenir la carte \emph{« plus grande
+    armée »}, qui vaut $2$ points de victoire.
+  \item[Progrès (6 cartes)] Offrent des bonus tactiques en ressources ou en
+    construction. Il en existe $3$ types, chacun en $2$ exemplaires :
+    \begin{itemize}[nosep]
+      \item \emph{Construction de routes} ($\times 2$) : placer gratuitement
+            $2$ routes sur le plateau.
+      \item \emph{Invention / Progrès scientifique} ($\times 2$) : prendre
+            gratuitement $2$ cartes Ressource de son choix dans la banque.
+      \item \emph{Monopole} ($\times 2$) : nommer une ressource ; tous les autres
+            joueurs doivent donner toutes les cartes de cette ressource qu'ils
+            possèdent.
+    \end{itemize}
+  \item[Point de Victoire (5 cartes)] Représentent des bâtiments importants de la
+    colonie. Chaque carte vaut $1$ point de victoire. Contrairement aux autres,
+    elles ne sont pas révélées à la pioche : elles restent \textbf{cachées} en main
+    et ne sont dévoilées qu'à la fin de la partie, lorsque le joueur atteint
+    $10$ points.
+\end{description}
+
+\subsection{Simplification retenue}
+
+\begin{remarque}[Simplification des cartes développement]
+Dans notre version simplifiée, nous \textbf{retirons les cartes Progrès}. Chaque
+joueur dispose alors de points de victoire \emph{publics} et \emph{privés} :
+\begin{itemize}[nosep]
+  \item les points de victoire \textbf{publics} sont visibles par tous les joueurs ;
+  \item les points de victoire \textbf{privés} restent cachés jusqu'à la fin du jeu.
+\end{itemize}
+Le fait de retirer les cartes Progrès simplifie la perception des joueurs pour le RL.
+\end{remarque}
+
+\subsection{Plus grande armée et route la plus longue}
+
+Deux récompenses accordent chacune $2$ points de victoire \textbf{publics} et sont
+\textbf{transférables} au cours de la partie.
+
+\begin{description}[leftmargin=1.4cm, style=nextline]
+  \item[Plus grande armée] Accordée au joueur ayant joué le plus de cartes Chevalier,
+    dès lors qu'il en a joué au moins~$3$. Si un autre joueur le dépasse
+    \emph{strictement} (en nombre de chevaliers joués), la récompense change de main.
+  \item[Route la plus longue] Accordée au joueur possédant la plus longue chaîne
+    continue de routes, d'au moins~$5$ segments. En cas d'égalité, le détenteur actuel
+    conserve la récompense. Une chaîne ne peut pas \emph{traverser} une intersection
+    occupée par une colonie ou une ville adverse : une colonie adverse peut donc couper
+    une route, et faire perdre (ou réduire) la plus longue route.
+\end{description}
+
+\begin{remarque}[Calcul de la route la plus longue]
+La longueur de la route d'un joueur est la longueur du plus long \emph{chemin sans
+réemprunter une arête} (un \emph{trail}) dans le sous-graphe de ses routes, le passage
+étant interdit à travers une intersection adverse. Une intersection adverse peut
+\emph{terminer} une chaîne, mais pas la prolonger.
+\end{remarque}
+
+% ======================================================================
+\section{Marché central}
+% ======================================================================
+
+Chaque joueur commence la partie avec $10$ d'or, et le marché central est initialisé
+avec un prix de $10$ d'or pour chaque ressource. Le prix des ressources évolue en
+fonction de l'\textbf{offre et de la demande} : les joueurs peuvent y acheter ou y
+vendre des ressources.
+
+\begin{remarque}[Loi d'évolution des prix]
+À chaque ressource \textbf{achetée}, le prix de cette ressource augmente de $1$ d'or.
+À chaque ressource \textbf{vendue}, le prix diminue de $1$ d'or. Le prix ne peut pas
+descendre en dessous de $1$ d'or, mais peut augmenter sans limite.
+\[
+  p_{t+1} \;=\;
+  \begin{cases}
+    p_t + 1 & \text{après un achat,}\\[2pt]
+    \max(1,\; p_t - 1) & \text{après une vente.}
+  \end{cases}
+\]
+\end{remarque}
+
+\paragraph{Exemple.} Si le prix du bois est de $10$ d'or et qu'un joueur achète
+$2$ bois, le prix passe à $12$ d'or et le joueur a dépensé $10 + 11 = 21$ d'or. Si un
+autre joueur vend ensuite $1$ bois, le prix retombe à $11$ d'or et le joueur reçoit
+$11$ d'or pour la vente.
+
+\paragraph{Affichage : prix d'achat et de vente.} Pour l'aspect visuel, chaque
+ressource possède deux prix, vente et achat, séparés de $1$ d'or.
+
+\begin{figure}[h]
+\centering
+\begin{tikzpicture}[font=\small]
+  % --- Tableau "ardoise de marché" ---
+  \node[draw=accentdark, fill=resBois, text=white, font=\bfseries,
+        minimum width=3cm, minimum height=0.8cm, rounded corners=2pt] (h) {Bois};
+  \node[draw=accentdark, fill=white, minimum width=3cm, minimum height=0.8cm,
+        below=0pt of h] (a) {Achat \;\textbf{10}};
+  \node[draw=accentdark, fill=white, minimum width=3cm, minimum height=0.8cm,
+        below=0pt of a] (v) {Vente \;\textbf{9}};
+
+  % --- Courbe d'évolution du prix ---
+  \begin{scope}[shift={(6.5,-1.4)}]
+    \draw[->] (0,0) -- (5.4,0) node[right,font=\footnotesize]{transactions};
+    \draw[->] (0,0) -- (0,3.0) node[above,font=\footnotesize]{prix};
+    \foreach \y in {1,2,3} \draw (-2pt,\y*0.7) -- (2pt,\y*0.7);
+    \node[font=\scriptsize,left] at (0,0.7) {1};
+    \node[font=\scriptsize,left] at (0,1.4) {10};
+    \node[font=\scriptsize,left] at (0,2.1) {12};
+    % achats : montée
+    \draw[resArgile, very thick, -{Stealth}]
+      (0.4,1.4) -- (1.4,1.4) -- (1.4,1.75) -- (2.4,1.75) -- (2.4,2.1);
+    \node[resArgile,font=\scriptsize,align=center] at (1.6,2.55){achats\\($+1$)};
+    % ventes : descente, bornée à 1
+    \draw[resBois, very thick, -{Stealth}]
+      (2.4,2.1) -- (3.4,2.1) -- (3.4,1.75) -- (4.6,1.75) -- (4.6,1.4);
+    \node[resBois,font=\scriptsize,align=center] at (4.4,2.4){ventes\\($-1$)};
+    \draw[dashed,gray] (0,0.7) -- (5.2,0.7);
+    \node[gray,font=\scriptsize] at (4.3,0.55){plancher = 1};
+  \end{scope}
+\end{tikzpicture}
+\caption{Affichage d'une ressource au marché (gauche) et dynamique du prix sous
+l'effet des achats et des ventes (droite).}
+\end{figure}
+
+% ======================================================================
+\section{Plateau et perception}
+% ======================================================================
+
+Nous distinguons deux types de perception dans le jeu : une perception
+\textbf{fixe}, qui ne varie pas au cours de la partie, et une perception
+\textbf{dynamique}, qui évolue en fonction des actions des joueurs.
+
+\begin{table}[h]
+\centering
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{>{\raggedright\arraybackslash}p{6.6cm} >{\raggedright\arraybackslash}p{6.6cm}}
+\toprule
+\textbf{\textcolor{accentdark}{Perception fixe}} &
+\textbf{\textcolor{accentdark}{Perception dynamique}} \\
+\midrule
+Disposition des tuiles et numéros associés à chaque tuile. &
+Position des colonies, villes et routes des joueurs. \\
+Disposition des ports et leur type. &
+Position du voleur. \\
+ & Ressources possédées par le joueur. \\
+ & Nombre de ressources possédées par les autres joueurs. \\
+ & Coût des ressources au marché central. \\
+\bottomrule
+\end{tabular}
+\caption{Décomposition de la perception du joueur.}
+\end{table}
+
+Certaines informations ne seront pas ajoutées directement à la perception dynamique :
+elles pourront plutôt être \textbf{déduites} par le joueur à partir de ses
+observations. Nous \textbf{n'incluons pas} dans la perception dynamique :
+
+\begin{itemize}[nosep]
+  \item les ressources possédées par les autres joueurs ;
+  \item les ressources disponibles dans la banque ;
+  \item le nombre de cartes développement possédées par les autres joueurs ;
+  \item le nombre de points de victoire des autres joueurs.
+\end{itemize}
+
+% ======================================================================
+\section{Tour d'un joueur}
+% ======================================================================
+
+Les dés sont lancés, et les ressources sont distribuées en fonction du résultat et de
+la position des colonies et villes des joueurs.
+
+\begin{itemize}[nosep]
+  \item Si le dé \textbf{n'a pas fait $7$}, le joueur joue son tour normalement.
+  \item S'il a \textbf{fait $7$}, il déplace le voleur et vole une ressource à un
+        autre joueur, puis joue son tour normalement.
+\end{itemize}
+
+\begin{remarque}[Défausse sur un $7$]
+Lorsqu'un $7$ est obtenu, chaque joueur (y compris le joueur actif) possédant
+\textbf{plus de $7$ cartes} ressource doit en défausser la moitié,
+$\left\lfloor n/2 \right\rfloor$. Ces cartes sont \textbf{choisies aléatoirement} : le
+joueur ne contrôle pas les cartes qu'il perd.
+\end{remarque}
+
+L'effet de déplacement du voleur est représenté par un état particulier de la machine
+d'état, l'état \textbf{VOL}, qui peut aussi être déclenché lorsqu'un joueur joue une
+carte Chevalier.
+
+\paragraph{Actions possibles pendant le tour.}
+\begin{itemize}[nosep]
+  \item Acheter et vendre des ressources au marché central.
+  \item Échanger des ressources avec les ports (ou $4$ pour $1$ avec la banque).
+  \item Construire des routes, colonies et villes.
+  \item Acheter des cartes développement.
+  \item Jouer une carte Chevalier.
+  \item Passer.
+\end{itemize}
+
+Cela permet de créer une routine \textbf{indépendante} des autres joueurs, tout en
+gardant l'interaction \emph{indirecte} avec eux à travers le marché central et les
+cartes Chevalier.
+
+% ======================================================================
+\section{Machine d'état du jeu}
+% ======================================================================
+
+Le jeu possède une machine d'état qui représente les différentes phases du jeu et les
+transitions entre elles. Les états principaux sont :
+
+\begin{itemize}[nosep]
+  \item \textbf{PREP} — état de préparation : les joueurs placent leurs colonies et
+        routes initiales.
+  \item \textbf{DÉS} — lancer de dés : détermine quelles ressources sont produites et
+        distribuées.
+  \item \textbf{JOUEUR} — tour du joueur : le joueur actif effectue ses actions.
+\end{itemize}
+
+\subsection{Vue globale}
+
+\begin{figure}[h]
+\centering
+\begin{tikzpicture}[
+    >=Stealth, node distance=3.2cm, on grid,
+    state/.style={circle, draw=accentdark, fill=softgray, very thick,
+                  minimum size=1.5cm, font=\bfseries}]
+  \node[state, initial, initial text=début] (prep) {PREP};
+  \node[state, right=of prep] (des) {DÉS};
+  \node[state, right=of des] (joueur) {JOUEUR};
+
+  \path[->, thick]
+    (prep)  edge node[above]{} (des)
+    (des)   edge[bend left]  node[above]{distribution} (joueur)
+    (joueur)edge[bend left]  node[below]{fin de tour} (des);
+\end{tikzpicture}
+\caption{Machine d'état globale : $\textbf{PREP} \to \textbf{DÉS}
+\leftrightarrow \textbf{JOUEUR}$.}
+\end{figure}
+
+\subsection{Détail d'un tour de joueur}
+
+\begin{figure}[h]
+\centering
+\begin{tikzpicture}[
+    >=Stealth, node distance=2.6cm and 3.4cm, on grid,
+    state/.style={rectangle, rounded corners=3pt, draw=accentdark, fill=softgray,
+                  very thick, minimum width=2.6cm, minimum height=1cm,
+                  align=center, font=\bfseries\small},
+    vol/.style={state, fill=resArgile!25, draw=resArgile}]
+
+  \node[state] (debut) {DÉBUT\\DE TOUR};
+  \node[state, below=of debut] (jeux) {JEUX};
+  \node[state, below=of jeux] (pass) {PASS};
+  \node[vol, right=of jeux] (vol) {VOL};
+
+  \path[->, thick]
+    (debut) edge node[left, align=center]{}                       (jeux)
+    (debut) edge[bend left=15] node[above, font=\scriptsize]{carte Voleur / dé = 7} (vol)
+    (jeux)  edge[bend left=15] node[above, font=\scriptsize]{carte Chevalier} (vol)
+    (vol)   edge[bend left=15] node[below, font=\scriptsize]{vol effectué} (jeux)
+    (jeux)  edge node[left]{passer} (pass);
+\end{tikzpicture}
+\caption{Sous-machine du tour d'un joueur. L'état \textbf{VOL} est atteint
+lorsqu'un $7$ est obtenu ou qu'une carte Chevalier est jouée.}
+\end{figure}
+
+% ======================================================================
+\section{Représentation du plateau}
+% ======================================================================
+
+Le plateau est représenté par un \textbf{graphe} : les \emph{sommets} représentent
+les intersections (où colonies et villes peuvent être construites) et les
+\emph{arêtes} représentent les routes. Chaque tuile de ressource porte un numéro qui
+détermine la production lorsque ce numéro est obtenu aux dés.
+
+\subsection{Notation des ressources}
+
+Pour simplifier, nous nommons les ressources comme suit.
+
+\begin{table}[h]
+\centering
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{c l l}
+\toprule
+\textbf{Symbole} & \textbf{Ressource} & \\
+\midrule
+\texttt{B} & Bois            & \pastille{resBois}{B} \\
+\texttt{W} & Blé (\emph{wheat})   & \pastille{resBle}{W} \\
+\texttt{S} & Mouton (\emph{sheep})& \pastille{resMouton}{S} \\
+\texttt{O} & Minerai (\emph{ore}) & \pastille{resMinerai}{O} \\
+\texttt{C} & Argile (\emph{clay}) & \pastille{resArgile}{C} \\
+\texttt{X} & Rien (désert ou mer) & \pastille{resDesert!80!black}{X} \\
+\bottomrule
+\end{tabular}
+\caption{Symboles utilisés pour les ressources.}
+\end{table}
+
+\subsection{Illustration : tuiles, sommets et arêtes}
+
+\begin{figure}[h]
+\centering
+\begin{tikzpicture}[scale=1.0,
+    hexface/.style={draw=black!55, line width=0.7pt, line join=round},
+    sommet/.style={circle, fill=accentdark, draw=white, line width=0.4pt,
+                   inner sep=0pt, minimum size=4.6pt},
+    route/.style={line width=3.2pt, resBois!70!black, line cap=round},
+    token/.style={circle, fill=white, draw=black!45, line width=0.6pt,
+                  minimum size=0.78cm, inner sep=0pt, font=\bfseries},
+    res/.style={font=\bfseries\footnotesize}]
+
+  % --- Sommets partagés (graphe G = (V,E)), tuiles « pointy-top » jointives ---
+  %     pas horizontal = 1.126, vertical = 0.65 / 1.3 ; rangée du bas à y = -1.95
+  \coordinate (a) at (-2.252, 0.65); \coordinate (b) at (-2.252,-0.65);
+  \coordinate (c) at (-1.126, 1.30); \coordinate (d) at (-1.126,-1.30);
+  \coordinate (e) at ( 0.000, 0.65); \coordinate (f) at ( 0.000,-0.65);
+  \coordinate (g) at ( 1.126, 1.30); \coordinate (h) at ( 2.252, 0.65);
+  \coordinate (i) at ( 2.252,-0.65); \coordinate (j) at ( 1.126,-1.30);
+  \coordinate (k) at (-1.126,-2.60); \coordinate (l) at ( 0.000,-3.25);
+  \coordinate (m) at ( 1.126,-2.60);
+
+  % --- Faces des trois tuiles (jointives, sans recouvrement) ---
+  \filldraw[hexface, fill=resBois!50]    (c)--(a)--(b)--(d)--(f)--(e)--cycle; % Bois
+  \filldraw[hexface, fill=resBle!55]     (g)--(e)--(f)--(j)--(i)--(h)--cycle; % Blé
+  \filldraw[hexface, fill=resMinerai!40] (f)--(d)--(k)--(l)--(m)--(j)--cycle; % Minerai
+
+  % --- Étiquette de ressource + jeton numéro (centre de chaque tuile) ---
+  \node[res, text=resBois!45!black]    at (-1.126, 0.46) {B};
+  \node[token, text=red]               at (-1.126,-0.18) {8};
+  \node[res, text=resBle!35!black]     at ( 1.126, 0.46) {W};
+  \node[token, text=red]               at ( 1.126,-0.18) {6};
+  \node[res, text=resMinerai!55!black] at ( 0.000,-1.49) {O};
+  \node[token]                         at ( 0.000,-2.13) {11};
+
+  % --- Sommets du graphe (toutes les intersections) ---
+  \foreach \v in {a,b,c,d,e,f,g,h,i,j,k,l,m} \node[sommet] at (\v) {};
+
+  % --- Une route construite (arête c--e) reliant une ville à une colonie ---
+  \draw[route] (c) -- (e);
+
+  % --- Ville (étoile) et colonie (carré) sur des sommets bien dégagés ---
+  \node[star, star points=5, star point ratio=2.3, fill=resOr, draw=black!45,
+        line width=0.4pt, minimum size=14pt, inner sep=0pt] at (c) {};
+  \node[rectangle, fill=resArgile, draw=white, line width=0.5pt,
+        minimum size=9pt, inner sep=0pt] at (e) {};
+
+  % --- Annotations ---
+  \node[font=\scriptsize, text=resOr!60!black, anchor=east]   at ($(c)+(-0.18,0.10)$) {ville};
+  \node[font=\scriptsize, text=resArgile!85!black, anchor=west] at ($(e)+(0.18,0.18)$) {colonie};
+  \node[font=\scriptsize, text=resBois!55!black, sloped, anchor=south]
+        at ($(c)!0.5!(e)+(0,0.04)$) {route};
+
+\end{tikzpicture}
+\caption{Représentation du plateau : les tuiles hexagonales portent une ressource et
+un numéro de production (en rouge pour les numéros fréquents $6$ et $8$). Les
+\textbf{sommets} sont les intersections constructibles (colonie = carré, ville =
+étoile) et les \textbf{arêtes} sont les routes.}
+\end{figure}
+
+\subsection{Coordonnées axiales}
+
+Le plateau est une grille hexagonale ; nous utilisons donc un système de coordonnées
+\textbf{axiales}. La position de chaque tuile est un couple $(q, r)$, où $q$ est la
+coordonnée « horizontale » et $r$ la coordonnée « verticale ». La tuile $(0,0)$ est la
+tuile \textbf{centrale} du plateau ; ses six voisines sont obtenues par les six
+déplacements élémentaires.
+
+\begin{table}[h]
+\centering
+\renewcommand{\arraystretch}{1.25}
+\begin{tabular}{c l c l}
+\toprule
+$(q,r)$ & Direction & $(q,r)$ & Direction \\
+\midrule
+$(1,0)$  & droite              & $(-1,0)$ & gauche \\
+$(1,-1)$ & haut à droite       & $(0,-1)$ & haut à gauche \\
+$(0,1)$  & bas à droite        & $(-1,1)$ & bas à gauche \\
+\bottomrule
+\end{tabular}
+\caption{Les six voisins de la tuile centrale $(0,0)$ en coordonnées axiales.}
+\end{table}
+
+\begin{figure}[h]
+\centering
+\begin{tikzpicture}[scale=1.0, font=\small]
+  % --- 7 tuiles : centrale (0,0) + 6 voisines ---
+  \hexat{0}{0}{resArgile!45}              % (0,0) centrale
+  \hexat{1.645}{0}{softgray}              % (1,0)  droite
+  \hexat{0.823}{1.425}{softgray}          % (1,-1) haut à droite
+  \hexat{-0.823}{1.425}{softgray}         % (0,-1) haut à gauche
+  \hexat{-1.645}{0}{softgray}             % (-1,0) gauche
+  \hexat{-0.823}{-1.425}{softgray}        % (-1,1) bas à gauche
+  \hexat{0.823}{-1.425}{softgray}         % (0,1)  bas à droite
+
+  % --- étiquettes de coordonnées ---
+  \node[font=\bfseries] at (0,0.34) {$(0,0)$};
+  \node[token/.try, circle, fill=white, draw=black!45, minimum size=0.62cm,
+        inner sep=0pt, font=\bfseries, text=red] at (0,-0.32) {6};
+  \node[font=\scriptsize\bfseries, text=resArgile!70!black] at (0,0.62) {C};
+
+  \node[font=\footnotesize] at ( 1.645, 0)     {$(1,0)$};
+  \node[font=\footnotesize] at ( 0.823, 1.425) {$(1,\!-1)$};
+  \node[font=\footnotesize] at (-0.823, 1.425) {$(0,\!-1)$};
+  \node[font=\footnotesize] at (-1.645, 0)     {$(-1,0)$};
+  \node[font=\footnotesize] at (-0.823,-1.425) {$(-1,1)$};
+  \node[font=\footnotesize] at ( 0.823,-1.425) {$(0,1)$};
+\end{tikzpicture}
+\caption{Voisinage axial : la tuile centrale $(0,0)$ — ici une tuile d'argile
+\texttt{C} portant le numéro $6$ — et ses six voisines.}
+\end{figure}
+
+\subsection{Représentation d'une tuile et d'un plateau}
+
+Un plateau est une \textbf{liste de tuiles}, chaque tuile étant représentée par un
+quadruplet $(q,\, r,\, \mathit{res},\, n)$ où $(q,r)$ sont les coordonnées axiales,
+$\mathit{res}$ le type de ressource (cf. table~2) et $n$ le numéro associé à la tuile.
+
+\begin{encodage}
+(0, 0, C, 6)   \% la tuile centrale est une tuile d'argile portant le numéro 6
+...
+\end{encodage}
+
+\subsection{Modèle de graphe : sommets et arêtes}
+
+Pour représenter le placement des villes, colonies et routes, nous utilisons un graphe
+$G = (V, E)$ où $V$ est l'ensemble des \textbf{sommets} (intersections) et $E$
+l'ensemble des \textbf{arêtes} (routes reliant des intersections adjacentes). Chaque
+sommet $v \in V$ peut être occupé par une colonie ou une ville appartenant à un joueur.
+
+\paragraph{Encodage d'un sommet.} Chaque sommet $v \in V$ est décrit par :
+\begin{itemize}[nosep]
+  \item \textbf{trois couples} $(\mathit{r}, n)$ donnant les tuiles adjacentes
+        (ressource et numéro). Un \textbf{port} apparaît sous la forme d'un couple
+        $(\mathit{r}, -1)$ pour un port de ressource (échange $2{:}1$), ou
+        $(\mathtt{X}, -1)$ pour un port générique $3{:}1$ ;
+  \item un \textbf{indice de joueur} : le propriétaire de la colonie/ville sur ce
+        sommet, ou $-1$ si le sommet est libre ;
+  \item un \textbf{booléen} indiquant si le sommet porte une \emph{ville}
+        (\texttt{true}) ou une \emph{colonie} (\texttt{false}).
+\end{itemize}
+
+\begin{encodage}
+( (B,8), (W,4), (C,-1), -1, false )
+\end{encodage}
+
+\noindent
+\emph{Lecture :} sommet \textbf{libre} ($-1$, \texttt{false}), adjacent à une tuile de
+bois numéro $8$, à une tuile de blé numéro $4$, et à un \textbf{port d'argile} $2{:}1$
+(couple $(C,-1)$).
+
+\paragraph{Encodage d'une arête.} Chaque arête $e \in E$ est représentée par un triplet
+$(v_1,\, v_2,\, p)$ où $v_1$ et $v_2$ sont les sommets reliés et $p$ l'indice du joueur
+qui possède la route, ou $-1$ si l'arête est libre.
+
+\begin{encodage}
+( v1, v2, p )
+\end{encodage}
+
+\subsection{Conclusion : informations accessibles au joueur}
+
+Le graphe $G$ remplace ainsi toute autre représentation du plateau. Pour conclure cette
+partie, récapitulons les informations auxquelles un joueur a accès — c'est-à-dire son
+\textbf{vecteur d'observation}, qui sera ensuite fourni au modèle d'apprentissage par
+renforcement pour prendre ses décisions.
+
+\begin{table}[h]
+\centering
+\renewcommand{\arraystretch}{1.35}
+\begin{tabular}{>{\raggedright\arraybackslash}p{8.0cm} l}
+\toprule
+\textbf{Information observée} & \textbf{Représentation} \\
+\midrule
+Le graphe $G$ (plateau complet) & graphe \\
+Ressources possédées par le joueur &
+  \texttt{\{ressource: quantité\}} \\
+Points de victoire \emph{publics} de chaque joueur &
+  \texttt{[pv\_1, pv\_2, \dots]} \\
+Cartes Point de Victoire possédées par le joueur &
+  entier \\
+Cartes Chevalier en main (privé) &
+  entier \\
+Nombre de ressources possédées par les autres joueurs &
+  \texttt{[res\_1, res\_2, \dots]} \\
+Prix des ressources au marché central &
+  \texttt{\{ressource: prix\}} \\
+\addlinespace[2pt]
+\midrule
+\multicolumn{2}{l}{\textit{Informations publiques pré-calculées}} \\
+\midrule
+Chevaliers \emph{joués} par chaque joueur &
+  \texttt{[ch\_1, ch\_2, \dots]} \\
+Longueur de la plus longue route de chaque joueur &
+  \texttt{[lr\_1, lr\_2, \dots]} \\
+Détenteur de la plus grande armée &
+  entier ou $-1$ \\
+Détenteur de la route la plus longue &
+  entier ou $-1$ \\
+\bottomrule
+\end{tabular}
+\caption{Vecteur d'observation accessible à un joueur.}
+\end{table}
+
+\noindent
+On retrouve ici la distinction de la section~4 : le graphe $G$ porte la perception
+fixe (tuiles, ports) et dynamique (colonies, villes, routes), tandis que les
+ressources, les points de victoire publics et les prix du marché complètent l'état
+observable. Les informations cachées (ressources \emph{détaillées}, cartes et points
+\emph{privés} des adversaires) en sont volontairement absentes : elles ne pourront être
+qu'\emph{estimées} par le joueur. Ce vecteur d'observation constitue l'entrée du modèle
+d'apprentissage par renforcement.
+
+\begin{remarque}[Pourquoi exposer la longueur des routes ?]
+Les informations publiques pré-calculées sont en théorie \emph{déductibles} du graphe
+$G$. Toutefois, déterminer la route la plus longue revient à résoudre un problème de
+\textbf{plus long chemin} (combinatoire et global) : un modèle de régression — voire un
+réseau de neurones sur graphe — ne saura pas le reconstituer de façon fiable à partir
+de la seule structure de $G$. Comme ces informations sont \textbf{publiques}, les
+pré-calculer et les exposer directement ne révèle aucune information cachée, tout en
+épargnant au modèle un calcul qu'il ne maîtrise pas. La longueur des routes, le nombre
+de chevaliers joués et les détenteurs des deux récompenses sont donc fournis
+explicitement.
+\end{remarque}
+
+\vfill
+\begin{center}\itshape\small
+Fin de cette première partie de l'étude.
+\end{center}
+
+\end{document}
