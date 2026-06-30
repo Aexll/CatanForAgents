@@ -48,6 +48,15 @@ COUL_TEXTE = (230, 232, 238)
 PHASES = {"PREP": "Préparation", "DES": "Lancer de dés",
           "JOUEUR": "Tour du joueur", "VOL": "Voleur"}
 
+# Métriques tracées par joueur (clé, titre).
+METRIQUES = [
+    ("pv", "Points de victoire publics"),
+    ("route", "Route la plus longue"),
+    ("chev", "Chevaliers joués"),
+    ("or", "Or"),
+    ("ress", "Ressources (total)"),
+]
+
 CANVAS = 540
 PAD = 44
 
@@ -206,16 +215,23 @@ def construire_ui():
                 dpg.add_text("MARCHÉ CENTRAL", color=(150, 200, 255))
                 dpg.add_child_window(tag="zone_marche", height=180, border=False)
 
-        # --- Historique des prix (pleine largeur, en bas) ---
+        # --- Courbes d'évolution (pleine largeur, en bas, en onglets) ---
         dpg.add_separator()
         with dpg.group(horizontal=True):
-            dpg.add_text("HISTORIQUE DES PRIX", color=(150, 200, 255))
+            dpg.add_text("COURBES D'ÉVOLUTION", color=(150, 200, 255))
+            dpg.add_text("    Axe X :")
             dpg.add_radio_button(("par étape", "par tour"), horizontal=True,
                                  tag="mode_graphe", default_value="par étape",
                                  callback=_on_mode)
-            dpg.add_text("(« par tour » regroupe les multiples transactions d'un même tour)",
+            dpg.add_text("(« par tour » regroupe les transactions d'un même tour)",
                          color=(140, 140, 150))
-        dpg.add_child_window(tag="zone_plot", height=250, border=False)
+        with dpg.tab_bar(tag="onglets_courbes"):
+            with dpg.tab(label="  Points / Route / Chevaliers  "):
+                dpg.add_child_window(tag="zone_pts", height=270, border=False)
+            with dpg.tab(label="  Or / Ressources  "):
+                dpg.add_child_window(tag="zone_or", height=270, border=False)
+            with dpg.tab(label="  Prix du marché  "):
+                dpg.add_child_window(tag="zone_prix", height=270, border=False)
 
     # --- Dialogue de fichier ---
     import os
@@ -256,46 +272,77 @@ def charger(chemin):
     # Ports (perception fixe) : id de sommet -> type de port ('X' = générique 3:1).
     etat["ports"] = {s["id"]: s["port"] for s in ps["sommets"] if s.get("port")}
 
-    # Historiques des prix : par étape et par tour ; + main connue de chaque joueur.
+    # Précalcul (un seul passage) : prix + trajectoires par joueur, par étape ET
+    # par tour ; main connue de chaque joueur.
+    n = etat["n"]
     prix_max = 12.0
     histo_e = {r: [] for r in RES}
     histo_t = {r: [] for r in RES}
+    traj_e = {cle: [[] for _ in range(n)] for cle, _ in METRIQUES}
+    traj_t = {cle: [[] for _ in range(n)] for cle, _ in METRIQUES}
+    or_courant = [None] * n                   # « or » : seul l'actif est connu
     xs_tour, tour_index = [], []
-    hand_idx = {p: [] for p in range(etat["n"])}
-    hand_val = {p: [] for p in range(etat["n"])}
+    hand_idx = {p: [] for p in range(n)}
+    hand_val = {p: [] for p in range(n)}
     cur_tour, prev_p = -1, None
     for idx, s in enumerate(steps):
         p = s["joueur"]
         obs = s["observation"]
-        if p != prev_p:                       # nouvelle « main » de joueur
+        nouveau_tour = p != prev_p
+        if nouveau_tour:
             cur_tour += 1
             prev_p = p
             xs_tour.append(cur_tour)
             for r in RES:
                 histo_t[r].append(None)
+            for cle, _ in METRIQUES:
+                for q in range(n):
+                    traj_t[cle][q].append(None)
         tour_index.append(cur_tour)
+        if obs.get("or") is not None and p is not None and 0 <= p < n:
+            or_courant[p] = obs["or"]
+        valeurs = {
+            "pv":   obs.get("pv_publics") or [None] * n,
+            "route": obs.get("longueur_routes") or [None] * n,
+            "chev": obs.get("chevaliers_joues") or [None] * n,
+            "ress": obs.get("ressources_adversaires") or [None] * n,
+            "or":   list(or_courant),
+        }
         pm = obs.get("prix_marche", {})
         for r in RES:
             v = pm.get(r)
             histo_e[r].append(v)
-            histo_t[r][cur_tour] = v           # garde le dernier prix du tour
+            histo_t[r][cur_tour] = v
             if v is not None:
                 prix_max = max(prix_max, v)
-        if p is not None and 0 <= p < etat["n"]:
+        for cle, _ in METRIQUES:
+            for q in range(n):
+                val = valeurs[cle][q]
+                traj_e[cle][q].append(val)
+                traj_t[cle][q][cur_tour] = val
+        if p is not None and 0 <= p < n:
             hand_idx[p].append(idx)
             hand_val[p].append({"ressources": obs.get("ressources", {}) or {},
                                 "or": obs.get("or"),
                                 "cartes_pv": obs.get("cartes_pv"),
                                 "cartes_chevalier": obs.get("cartes_chevalier")})
+
+    # Bornes hautes des axes Y (pour les courbes et le curseur).
+    def _ymax(cle, defaut):
+        vals = [v for q in range(n) for v in traj_e[cle][q] if v is not None]
+        return (max(vals) if vals else defaut) + (2 if cle in ("or", "ress") else 1)
+    ymax = {cle: _ymax(cle, 1) for cle, _ in METRIQUES}
+
     etat.update(prix_max=prix_max,
                 xs_etape=list(range(len(steps))), histo_etape=histo_e,
                 xs_tour=xs_tour, histo_tour=histo_t, tour_index=tour_index,
+                traj_etape=traj_e, traj_tour=traj_t, ymax=ymax,
                 hand_idx=hand_idx, hand_val=hand_val)
 
     _construire_table_joueurs()
     _construire_mains()
     _construire_marche()
-    _construire_plot()
+    _construire_plots()
     dpg.set_value("mode_graphe", "par étape")
 
     dpg.set_value("lbl_fichier", os.path.basename(chemin))
@@ -384,40 +431,82 @@ def _construire_marche():
                 dpg.add_text("", tag=f"m{r}_vente")
 
 
-def _theme_ligne(color):
+def _theme_serie(color, weight=2.0):
     with dpg.theme() as t:
-        with dpg.theme_component(dpg.mvLineSeries):
+        with dpg.theme_component(dpg.mvAll):  # s'applique aux line & inf_line series
             dpg.add_theme_color(dpg.mvPlotCol_Line, color, category=dpg.mvThemeCat_Plots)
-            dpg.add_theme_style(dpg.mvPlotStyleVar_LineWeight, 2.0, category=dpg.mvThemeCat_Plots)
+            dpg.add_theme_style(dpg.mvPlotStyleVar_LineWeight, weight,
+                                category=dpg.mvThemeCat_Plots)
     return t
 
 
-def _construire_plot():
-    dpg.delete_item("zone_plot", children_only=True)
-    with dpg.plot(parent="zone_plot", height=230, width=-1):
+def _plot_metrique(cle, titre, ylabel=""):
+    """Crée un graphique (une courbe par joueur) pour une métrique."""
+    with dpg.plot(label=titre, height=-1, width=-1, no_mouse_pos=False):
         dpg.add_plot_legend()
-        dpg.add_plot_axis(dpg.mvXAxis, label="étape", tag="px")
-        yax = dpg.add_plot_axis(dpg.mvYAxis, label="prix", tag="py")
+        dpg.add_plot_axis(dpg.mvXAxis, tag=f"ax_{cle}_x")
+        yax = dpg.add_plot_axis(dpg.mvYAxis, label=ylabel, tag=f"ax_{cle}_y")
+        for p in range(etat["n"]):
+            s = dpg.add_line_series([], [], label=etat["noms"][p], parent=yax,
+                                    tag=f"s_{cle}_{p}")
+            dpg.bind_item_theme(s, _theme_serie(coul_joueur(p)))
+        cur = dpg.add_inf_line_series([0], parent=yax, tag=f"cur_{cle}")
+        dpg.bind_item_theme(cur, _theme_serie((235, 235, 235), 1.4))
+
+
+def _construire_plots():
+    # Onglet « Points / Route / Chevaliers » : 3 graphiques côte à côte.
+    dpg.delete_item("zone_pts", children_only=True)
+    with dpg.subplots(1, 3, width=-1, height=-1, parent="zone_pts", link_all_x=True):
+        _plot_metrique("pv", "Points de victoire publics")
+        _plot_metrique("route", "Route la plus longue")
+        _plot_metrique("chev", "Chevaliers joués")
+
+    # Onglet « Or / Ressources » : 2 graphiques côte à côte.
+    dpg.delete_item("zone_or", children_only=True)
+    with dpg.subplots(1, 2, width=-1, height=-1, parent="zone_or", link_all_x=True):
+        _plot_metrique("or", "Or (dernier connu par joueur)")
+        _plot_metrique("ress", "Ressources en main (total)")
+
+    # Onglet « Prix du marché » : un graphique pleine largeur (une courbe par ressource).
+    dpg.delete_item("zone_prix", children_only=True)
+    with dpg.plot(parent="zone_prix", height=-1, width=-1):
+        dpg.add_plot_legend()
+        dpg.add_plot_axis(dpg.mvXAxis, tag="ax_prix_x")
+        yax = dpg.add_plot_axis(dpg.mvYAxis, label="prix", tag="ax_prix_y")
         for r in RES:
-            s = dpg.add_line_series([], [], label=r, parent=yax, tag=f"serie_{r}")
-            dpg.bind_item_theme(s, _theme_ligne(RES_COL[r]))
-        cur = dpg.add_line_series([0, 0], [0, etat["prix_max"]], label="curseur",
-                                  parent=yax, tag="serie_curseur")
-        dpg.bind_item_theme(cur, _theme_ligne((255, 255, 255)))
+            s = dpg.add_line_series([], [], label=RES_NOM[r], parent=yax, tag=f"serie_{r}")
+            dpg.bind_item_theme(s, _theme_serie(RES_COL[r]))
+        cur = dpg.add_inf_line_series([0], parent=yax, tag="cur_prix")
+        dpg.bind_item_theme(cur, _theme_serie((235, 235, 235), 1.4))
+
     maj_graphe()
 
 
 def maj_graphe():
-    """Met à jour les séries du graphique selon le mode (étape / tour)."""
-    if etat.get("mode") == "tour":
-        xs, histo, label = etat["xs_tour"], etat["histo_tour"], "tour"
-    else:
-        xs, histo, label = etat["xs_etape"], etat["histo_etape"], "étape"
+    """Met à jour toutes les courbes selon le mode (par étape / par tour)."""
+    tour = etat.get("mode") == "tour"
+    xs = etat["xs_tour"] if tour else etat["xs_etape"]
+    label = "tour" if tour else "étape"
+    xmax = max(1, xs[-1] if xs else 1)
+
+    # Prix du marché
+    histo = etat["histo_tour"] if tour else etat["histo_etape"]
     for r in RES:
         dpg.set_value(f"serie_{r}", [xs, [v if v is not None else 0 for v in histo[r]]])
-    dpg.configure_item("px", label=label)
-    dpg.set_axis_limits("px", 0, max(1, xs[-1] if xs else 1))
-    dpg.set_axis_limits("py", 0, etat["prix_max"] + 1)
+    dpg.configure_item("ax_prix_x", label=label)
+    dpg.set_axis_limits("ax_prix_x", 0, xmax)
+    dpg.set_axis_limits("ax_prix_y", 0, etat["prix_max"] + 1)
+
+    # Métriques par joueur
+    traj = etat["traj_tour"] if tour else etat["traj_etape"]
+    for cle, _titre in METRIQUES:
+        for p in range(etat["n"]):
+            ys = [v if v is not None else 0 for v in traj[cle][p]]
+            dpg.set_value(f"s_{cle}_{p}", [xs, ys])
+        dpg.configure_item(f"ax_{cle}_x", label=label)
+        dpg.set_axis_limits(f"ax_{cle}_x", 0, xmax)
+        dpg.set_axis_limits(f"ax_{cle}_y", 0, etat["ymax"][cle])
 
 
 def _on_mode(sender, value):
@@ -497,9 +586,11 @@ def afficher(i):
         dpg.set_value(f"m{r}_achat", str(prix))
         dpg.set_value(f"m{r}_vente", str(max(0, prix - 1)))
 
-    # --- Curseur du graphique (position selon le mode) ---
+    # --- Curseurs des graphiques (position selon le mode) ---
     xcur = etat["tour_index"][i] if etat.get("mode") == "tour" else i
-    dpg.set_value("serie_curseur", [[xcur, xcur], [0, etat["prix_max"] + 1]])
+    dpg.set_value("cur_prix", [[xcur]])
+    for cle, _titre in METRIQUES:
+        dpg.set_value(f"cur_{cle}", [[xcur]])
 
     # --- Plateau ---
     dessiner(obs)
@@ -605,7 +696,7 @@ def main():
     construire_ui()
     appliquer_theme()
     dpg.set_global_font_scale(1.15)
-    dpg.create_viewport(title="Catan — Visualiseur de parties", width=1240, height=980)
+    dpg.create_viewport(title="Catan — Visualiseur de parties", width=1240, height=1015)
     dpg.setup_dearpygui()
     dpg.show_viewport()
     dpg.set_primary_window("principal", True)
