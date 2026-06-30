@@ -1,20 +1,14 @@
-"""Agent « axel » — variante glouton qui complète ses ressources au marché."""
+
 
 from agent import AgentCatan
 
 
-class AgentGlouton2(AgentCatan):
-    """Variante glouton : achète au marché les ressources manquantes.
-
-    Montre comment exploiter à la fois ``observation`` (dynamique) et
-    ``self.plateau`` (statique). Stratégie simple :
-      - placement initial sur le sommet le plus productif (somme des « pips ») ;
-      - voleur sur la tuile la plus productive ;
-      - à son tour : ville > colonie > (achat des ressources manquantes) > route
-        > carte dev > passer.
+class Simple(AgentCatan):
+    """
+    Agent qui joue de manière simple, en essayant de construire des colonies et des villes
     """
 
-    NOM = "axel"
+    NOM = "simple"
 
     @staticmethod
     def _pips(num):
