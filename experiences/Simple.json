@@ -1,0 +1,367 @@
+{
+  "nom": "Simple",
+  "tuiles": [
+    {
+      "q": -2,
+      "r": 0,
+      "res": "S",
+      "num": 4
+    },
+    {
+      "q": -2,
+      "r": 1,
+      "res": "O",
+      "num": 10
+    },
+    {
+      "q": -2,
+      "r": 2,
+      "res": "W",
+      "num": 6
+    },
+    {
+      "q": -1,
+      "r": -1,
+      "res": "S",
+      "num": 5
+    },
+    {
+      "q": -1,
+      "r": 0,
+      "res": "O",
+      "num": 11
+    },
+    {
+      "q": -1,
+      "r": 1,
+      "res": "X",
+      "num": null
+    },
+    {
+      "q": -1,
+      "r": 2,
+      "res": "S",
+      "num": 2
+    },
+    {
+      "q": 0,
+      "r": -2,
+      "res": "B",
+      "num": 12
+    },
+    {
+      "q": 0,
+      "r": -1,
+      "res": "C",
+      "num": 5
+    },
+    {
+      "q": 0,
+      "r": 0,
+      "res": "B",
+      "num": 8
+    },
+    {
+      "q": 0,
+      "r": 1,
+      "res": "C",
+      "num": 3
+    },
+    {
+      "q": 0,
+      "r": 2,
+      "res": "O",
+      "num": 4
+    },
+    {
+      "q": 1,
+      "r": -2,
+      "res": "C",
+      "num": 9
+    },
+    {
+      "q": 1,
+      "r": -1,
+      "res": "B",
+      "num": 11
+    },
+    {
+      "q": 1,
+      "r": 0,
+      "res": "W",
+      "num": 6
+    },
+    {
+      "q": 1,
+      "r": 1,
+      "res": "W",
+      "num": 8
+    },
+    {
+      "q": 2,
+      "r": -2,
+      "res": "S",
+      "num": 10
+    },
+    {
+      "q": 2,
+      "r": -1,
+      "res": "B",
+      "num": 3
+    },
+    {
+      "q": 2,
+      "r": 0,
+      "res": "W",
+      "num": 9
+    }
+  ],
+  "ports": {
+    "2": "X",
+    "3": "X",
+    "4": "O",
+    "5": "O",
+    "8": "X",
+    "13": "S",
+    "12": "S",
+    "23": "B",
+    "24": "B",
+    "25": "X",
+    "40": "X",
+    "35": "W",
+    "46": "W",
+    "38": "C",
+    "49": "C",
+    "47": "X",
+    "48": "X"
+  },
+  "voleur": [
+    1,
+    0
+  ],
+  "n": 4,
+  "joueurs": [
+    {
+      "type": "simple3",
+      "nom": "Agent"
+    },
+    {
+      "type": "simple3",
+      "nom": "R2"
+    },
+    {
+      "type": "simple3",
+      "nom": "R3"
+    },
+    {
+      "type": "simple3",
+      "nom": "R4"
+    }
+  ],
+  "agent": 0,
+  "pj": 0,
+  "bat": [
+    {
+      "sommet": 10,
+      "joueur": 0,
+      "ville": false
+    },
+    {
+      "sommet": 14,
+      "joueur": 3,
+      "ville": false
+    },
+    {
+      "sommet": 18,
+      "joueur": 0,
+      "ville": false
+    },
+    {
+      "sommet": 20,
+      "joueur": 2,
+      "ville": false
+    },
+    {
+      "sommet": 34,
+      "joueur": 3,
+      "ville": false
+    },
+    {
+      "sommet": 39,
+      "joueur": 1,
+      "ville": false
+    },
+    {
+      "sommet": 42,
+      "joueur": 2,
+      "ville": false
+    },
+    {
+      "sommet": 44,
+      "joueur": 1,
+      "ville": true
+    }
+  ],
+  "rte": [
+    {
+      "arete": [
+        14,
+        26
+      ],
+      "joueur": 3
+    },
+    {
+      "arete": [
+        20,
+        32
+      ],
+      "joueur": 2
+    },
+    {
+      "arete": [
+        25,
+        40
+      ],
+      "joueur": 1
+    },
+    {
+      "arete": [
+        26,
+        29
+      ],
+      "joueur": 3
+    },
+    {
+      "arete": [
+        29,
+        30
+      ],
+      "joueur": 3
+    },
+    {
+      "arete": [
+        31,
+        32
+      ],
+      "joueur": 2
+    },
+    {
+      "arete": [
+        31,
+        42
+      ],
+      "joueur": 2
+    },
+    {
+      "arete": [
+        33,
+        44
+      ],
+      "joueur": 1
+    },
+    {
+      "arete": [
+        38,
+        39
+      ],
+      "joueur": 1
+    },
+    {
+      "arete": [
+        38,
+        40
+      ],
+      "joueur": 1
+    },
+    {
+      "arete": [
+        41,
+        42
+      ],
+      "joueur": 2
+    },
+    {
+      "arete": [
+        42,
+        43
+      ],
+      "joueur": 1
+    },
+    {
+      "arete": [
+        43,
+        44
+      ],
+      "joueur": 1
+    },
+    {
+      "arete": [
+        43,
+        51
+      ],
+      "joueur": 1
+    }
+  ],
+  "etats": [
+    {
+      "ressources": {
+        "B": 1,
+        "W": 1,
+        "S": 0,
+        "O": 0,
+        "C": 1
+      },
+      "or": 5,
+      "chevalier": 0,
+      "pv": 0,
+      "kj": 0
+    },
+    {
+      "ressources": {
+        "B": 0,
+        "W": 0,
+        "S": 0,
+        "O": 0,
+        "C": 0
+      },
+      "or": 10,
+      "chevalier": 0,
+      "pv": 0,
+      "kj": 0
+    },
+    {
+      "ressources": {
+        "B": 0,
+        "W": 0,
+        "S": 0,
+        "O": 0,
+        "C": 0
+      },
+      "or": 10,
+      "chevalier": 0,
+      "pv": 0,
+      "kj": 0
+    },
+    {
+      "ressources": {
+        "B": 0,
+        "W": 0,
+        "S": 0,
+        "O": 0,
+        "C": 0
+      },
+      "or": 10,
+      "chevalier": 0,
+      "pv": 0,
+      "kj": 0
+    }
+  ],
+  "prix": {
+    "B": 11,
+    "W": 11,
+    "S": 10,
+    "O": 10,
+    "C": 11
+  },
+  "decision": "Tour (action principale)"
+}

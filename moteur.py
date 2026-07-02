@@ -455,13 +455,15 @@ class Moteur:
         # Phase d'actions principale
         self.phase = C.ETAT_JOUEUR
         self.dev_joue_ce_tour = False
+        actions_jouees = 0
         while self.gagnant is None:
             actions = self._actions_legales(p)
             a = self._demander(p, actions)
             if a["type"] == "passer":
                 break
             self._appliquer_action(p, a)
-            if self._verifier_victoire():
+            actions_jouees += 1
+            if self._verifier_victoire() or actions_jouees >= C.MAX_ACTIONS_TOUR:
                 break
 
     def _lancer_des(self):

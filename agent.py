@@ -144,11 +144,11 @@ class AgentCatan(Joueur):
         """Choisit le sommet où poser une colonie de départ (renvoie un id)."""
         return self.rng.choice(sommets)
 
-    def placement_initial_route(self, observation, aretes):
+    def placement_initial_route(self, observation, aretes) -> list:
         """Choisit l'arête où poser une route de départ (renvoie ``[a, b]``)."""
         return self.rng.choice(aretes)
 
-    def placement_voleur(self, observation, tuiles):
+    def placement_voleur(self, observation, tuiles) -> list:
         """Choisit la tuile où déplacer le voleur (renvoie ``[q, r]``)."""
         return self.rng.choice(tuiles)
 

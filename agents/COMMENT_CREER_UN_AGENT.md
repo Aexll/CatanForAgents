@@ -250,3 +250,54 @@ visuellement avec `python view.py`.
   constructions sur un même tour, un appel à la fois.
 - **Nom unique** : si deux agents déclarent le même `NOM`, le dernier chargé gagne
   (un avertissement s'affiche).
+
+---
+
+## 10. Boîte à outils d'analyse (`tools.py`)
+
+`tools.py` fournit des fonctions prêtes à l'emploi pour analyser le plateau. Le plus
+pratique est de construire un `AnalyseurPlateau` une fois par partie :
+
+```python
+from agent import AgentCatan
+from tools import AnalyseurPlateau, COUTS
+
+class MonAgent(AgentCatan):
+    NOM = "mon_agent"
+
+    def nouvelle_partie(self, indice, plateau=None):
+        super().nouvelle_partie(indice, plateau)
+        self.an = AnalyseurPlateau(plateau)          # cache la structure du plateau
+
+    def jouer_tour(self, observation, actions):
+        j = self.indice
+        # meilleure colonie constructible selon la production espérée
+        spots = self.an.colonies_constructibles(observation, j)
+        if spots and actions.construire_colonies:
+            meilleur = max(spots, key=self.an.esperance_production)
+            for a in actions.construire_colonies:
+                if a["sommet"] == meilleur:
+                    return a
+        return actions.passer
+```
+
+Fonctions utiles (méthodes de `AnalyseurPlateau`) :
+
+| Appel | Renvoie |
+|---|---|
+| `an.ressources_adjacentes(sid)` | ressources productives autour d'un emplacement |
+| `an.numeros_adjacents(sid)` / `an.port(sid)` | numéros des tuiles / type de port |
+| `an.esperance_production(sid)` | Q_s = espérance de ressources/tour (métrique de l'étude) |
+| `an.esperance_ressource(sid, res)` | espérance d'**une** ressource sur ce sommet |
+| `an.distance(t1, t2)` | distance (nb de chemins) entre deux terrains |
+| `an.distance_au_joueur(obs, j)` | dict `{terrain: nb de routes}` (0 = constructible) |
+| `an.colonies_constructibles(obs, j)` | emplacements où poser une colonie maintenant |
+| `an.aretes_constructibles(obs, j)` | routes que le joueur peut poser |
+| `an.production_joueur(obs, j)` | production espérée par ressource (voleur pris en compte) |
+| `an.meilleur_taux(obs, j, res)` | meilleur taux d'échange (4/3/2) via ses ports |
+| `an.voleur_menace(obs, j)` | le voleur bloque-t-il un de ses terrains ? |
+| `an.peut_payer(obs, COUTS["ville"])` | a-t-il de quoi payer un coût ? |
+| `an.ressources_manquantes(obs, COUTS["ville"])` | ce qui lui manque pour ce coût |
+
+Les mêmes fonctions existent aussi au niveau module :
+`tools.ressources_adjacentes(self.plateau, sid)`, `tools.distance_au_joueur(...)`, etc.

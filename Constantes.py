@@ -73,6 +73,7 @@ ROUTE_MIN         = 5     # longueur minimale pour prétendre à la route la plu
 BONUS_ROUTE       = 2     # points de victoire accordés par la route la plus longue
 SEUIL_DEFAUSSE    = 7     # au-delà de 7 cartes, défausse de la moitié sur un 7
 MAX_TOURS         = 2000  # garde-fou contre les parties qui ne se terminent pas
+MAX_ACTIONS_TOUR  = 100   # garde-fou : nb max d'actions par tour (évite les boucles)
 
 # ----------------------------------------------------------------------
 # États de la machine d'état

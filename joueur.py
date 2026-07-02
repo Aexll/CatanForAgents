@@ -62,23 +62,43 @@ class JoueurRandom(Joueur):
 class JoueurRL(Joueur):
     """Joueur piloté par apprentissage par renforcement.
 
-    Pour l'instant, la politique n'est pas encore entraînée : on utilise une
-    politique aléatoire de remplacement afin que la chaîne complète (moteur,
-    sauvegarde) puisse être exécutée de bout en bout. Le modèle RL viendra se
-    brancher ici, en consommant ``observation`` (le vecteur d'observation) et en
-    renvoyant une action de ``actions_legales``.
+    Charge un modèle entraîné (``rl/modele.pt`` par défaut, ou la variable
+    d'environnement ``CATAN_RL_MODELE``) et l'utilise pour décider. Si aucun modèle
+    n'est disponible (pas encore entraîné, ou PyTorch absent), on se rabat sur une
+    politique aléatoire — la chaîne complète reste ainsi exécutable.
+
+    Voir ``rl/`` et ``rl/train.py`` pour l'entraînement.
     """
 
-    def __init__(self, nom=None, seed=None, politique=None):
+    def __init__(self, nom=None, seed=None, modele=None):
         super().__init__(nom)
         self.rng = random.Random(seed)
-        self.politique = politique  # callable(observation, actions) -> action
+        import os
+        self.chemin_modele = modele or os.environ.get("CATAN_RL_MODELE", "rl/modele.pt")
+        self._politique = None
+        self._indisponible = False
+
+    def _charger(self):
+        if self._politique is None and not self._indisponible:
+            import os
+            try:
+                if os.path.exists(self.chemin_modele):
+                    from rl.jouer import charger_politique
+                    self._politique = charger_politique(self.chemin_modele)
+                else:
+                    self._indisponible = True
+                    print(f"[rl] modèle introuvable ({self.chemin_modele}) "
+                          f"-> politique aléatoire")
+            except Exception as e:
+                self._indisponible = True
+                print(f"[rl] chargement du modèle impossible ({e}) -> politique aléatoire")
+        return self._politique
 
     def decider(self, observation, actions_legales):
-        if self.politique is not None:
-            return self.politique(observation, actions_legales)
-        # TODO : remplacer par l'inférence du modèle entraîné.
-        return self.rng.choice(actions_legales)
+        politique = self._charger()
+        if politique is None:
+            return self.rng.choice(actions_legales)
+        return politique.choisir(observation, actions_legales, self.plateau, self.indice)
 
 
 class JoueurHumain(Joueur):
